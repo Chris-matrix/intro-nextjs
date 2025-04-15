@@ -1,0 +1,68 @@
+name: Autograding Tests
+'on':
+- push
+- repository_dispatch
+
+permissions:
+  checks: write
+  actions: read
+  contents: read
+jobs:
+  run-autograding-tests:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-classroom[bot]'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js 22
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 10.8.0
+
+    - name: Get pnpm store directory
+      shell: bash
+      run: |
+        echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+    - name: Setup pnpm cache
+      uses: actions/cache@v3
+      with:
+        path: ${{ env.STORE_PATH }}
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pnpm-store-
+
+    - name: Install Dependencies
+      id: install-dependencies
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: Install Dependencies
+        command: pnpm install
+
+        timeout: 10
+        max-score: 25
+
+    - name: Run Unit Test
+      id: run-unit-test
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: Run Unit Test
+
+        setup-command: ''
+        command: pnpm test
+        timeout: 10
+        max-score: 25
+
+    - name: Autograding Reporter
+      uses: classroom-resources/autograding-grading-reporter@v1
+      env:
+        INSTALL-DEPENDENCIES_RESULTS: "${{ steps.install-dependencies.outputs.result }}"
+        RUN-UNIT-TEST_RESULTS: "${{ steps.run-unit-test.outputs.result }}"
+      with:
+        runners: install-dependencies,run-unit-test
